@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Stethoscope Global Dashboard</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+    <style>
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #f8fafc; text-align: center; }
+        .container { padding: 20px; max-width: 800px; margin: auto; }
+        .card { background: #1e293b; border-radius: 20px; padding: 25px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.3); }
+        .bpm-display { font-size: 80px; font-weight: 800; color: #ef4444; margin: 10px 0; }
+        canvas { width: 100%; height: 300px; background: #000; border-radius: 12px; border: 1px solid #334155; margin: 20px 0; }
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        button { padding: 18px; border-radius: 12px; border: none; font-weight: 700; cursor: pointer; font-size: 16px; transition: 0.2s; }
+        #startBtn { background: #3b82f6; color: white; }
+        #stopBtn { background: #475569; color: white; }
+        #callBtn { background: #f59e0b; color: white; grid-column: span 1; }
+        #reportBtn { background: #10b981; color: white; grid-column: span 1; display: none; }
+        .status-tag { display: inline-block; padding: 5px 15px; background: #334155; border-radius: 20px; font-size: 12px; color: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="status-tag" id="status">OFFLINE</div>
+            <div class="bpm-display"><span id="bpm">--</span> <small style="font-size: 20px;">BPM</small></div>
+            <canvas id="scope"></canvas>
+            <div class="controls">
+                <button id="startBtn" onclick="toggleSession(true)">▶ START MONITOR</button>
+                <button id="stopBtn" onclick="toggleSession(false)">⏸ STOP</button>
+                <button id="callBtn" onclick="triggerCall()">📞 CALL DOCTOR</button>
+                <button id="reportBtn" onclick="downloadVisualReport()">📄 DOWNLOAD REPORT</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- FIREBASE CONFIGURATION ---
+        const firebaseConfig = {
+            databaseURL: "YOUR_FIREBASE_DATABASE_URL",
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // --- UI ELEMENTS ---
+        const canvas = document.getElementById('scope');
+        const ctx = canvas.getContext('2d');
+        const bpmText = document.getElementById('bpm');
+        const statusTag = document.getElementById('status');
+        const reportBtn = document.getElementById('reportBtn');
+
+        let dataBuffer = new Array(500).fill(128);
+        let audioCtx, gainNode;
+
+        // Sync BPM and Data from Firebase
+        db.ref('live/bpm').on('value', (snapshot) => {
+            bpmText.innerText = snapshot.val() || "--";
+        });
+
+        db.ref('live/status').on('value', (snapshot) => {
+            const val = snapshot.val();
+            statusTag.innerText = val;
+            if(val === "LUB") playHeartSound(80, 0.2);
+            if(val === "DUB") playHeartSound(60, 0.15);
+            if(val === "FINISHED") reportBtn.style.display = "block";
+        });
+
+        // Waveform Drawing Logic (Simulated for demo if no WebSocket)
+        function draw() {
+            ctx.fillStyle = "#000";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.strokeStyle = "#00ff00";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for(let i=0; i<dataBuffer.length; i++) {
+                let y = (1 - dataBuffer[i]/255) * canvas.height;
+                if(i===0) ctx.moveTo(i, y); else ctx.lineTo(i, y);
+            }
+            ctx.stroke();
+            requestAnimationFrame(draw);
+        }
+        draw();
+
+        function playHeartSound(freq, dur) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let osc = audioCtx.createOscillator();
+            let g = audioCtx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+            g.gain.setValueAtTime(0.5, audioCtx.currentTime);
+            g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + dur);
+            osc.connect(g); g.connect(audioCtx.destination);
+            osc.start(); osc.stop(audioCtx.currentTime + dur);
+        }
+
+        function toggleSession(state) {
+            db.ref('commands/monitor').set(state);
+            statusTag.innerText = state ? "MONITORING" : "STOPPED";
+        }
+
+        function triggerCall() {
+            db.ref('commands/call').set(true);
+            alert("Initiating GSM Call to Doctor...");
+        }
+
+        function downloadVisualReport() {
+            const screenshot = canvas.toDataURL("image/png");
+            const reportHtml = `
+                <html><body style="font-family:sans-serif; padding:40px;">
+                <h1>Smart Stethoscope Report</h1>
+                <p>Date: ${new Date().toLocaleString()}</p>
+                <h2>Final Heart Rate: ${bpmText.innerText} BPM</h2>
+                <hr>
+                <h3>Waveform Analysis</h3>
+                <img src="${screenshot}" style="width:100%; border:1px solid #ccc;">
+                </body></html>`;
+            const blob = new Blob([reportHtml], {type: 'text/html'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'Patient_Report.html'; a.click();
+        }
+    </script>
+</body>
+</html>
