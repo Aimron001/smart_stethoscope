@@ -90,7 +90,7 @@
     // ==========================================
     let GEMINI_API_KEY = localStorage.getItem("gemini_key") ;
 
-    if (!GEMINI_API_KEY) {
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_API_KEY_HERE") {
       GEMINI_API_KEY = prompt("Enter your AI Key Password to enable the AI Assistant");
       if (GEMINI_API_KEY) {
         localStorage.setItem("gemini_key", GEMINI_API_KEY);
@@ -140,6 +140,8 @@
       } else if (waveformData.length > targetLength) {
         waveformData = waveformData.slice(waveformData.length - targetLength);
       }
+      // --- FIX: Immediately redraw the canvas after resizing so it doesn't stay blank
+      drawWave();
     }
     window.addEventListener('resize',resize);
     resize();
@@ -380,7 +382,6 @@
           currentAIState = stateTag;
           finalAiReport = aiText;
           
-          // --- NEW: Color Code the Dashboard Chat Bubble ---
           const bubbleClass = (stateTag === "NORMAL") ? "msg-ai-normal" : "msg-ai-review";
           const bubbleHeader = (stateTag === "NORMAL") ? "🟢 NORMAL STATUS" : "🔴 REVIEW RECOMMENDED";
           
@@ -405,6 +406,12 @@
       if(paused) return; 
       paused = true; 
       isMonitoring = false;
+
+      // --- FIX: Instantly kill any scheduled heartbeat sounds ---
+      if (audioCtx.state === 'running') {
+        audioCtx.suspend();
+      }
+      nextPlayTime = 0; 
       
       const statusDiv = document.getElementById('status');
       statusDiv.textContent = "Session Ended";
@@ -432,7 +439,13 @@
     }
 
     function startSession() {
-      audioCtx.resume(); 
+      // Wake the audio context back up for the new session
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      } else {
+        audioCtx.resume(); 
+      }
+      
       paused = false; 
       isMonitoring = false;
       targetLiveBPM = 0;
