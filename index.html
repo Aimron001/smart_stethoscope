@@ -88,7 +88,16 @@
     // ==========================================
     // SECURE LOCAL STORAGE FOR API KEY
     // ==========================================
-    let GEMINI_API_KEY = "AIzaSyCd5P0elIfcGuew3dA6p-n6pA1i7RnYMd0";
+    let GEMINI_API_KEY = localStorage.getItem("GEMINI_API_KEY") ;
+
+    if (!GEMINI_API_KEY) {
+      GEMINI_API_KEY = prompt("Enter your AI Key Password to enable the AI Assistant");
+      if (GEMINI_API_KEY) {
+        localStorage.setItem("gemini_key", GEMINI_API_KEY);
+      } else {
+        alert("AI Assistant disabled. Refresh the page to enter a key.");
+      }
+    }
 
     const WSS_URL = 'wss://669c1d46b8674baa9e5592f13461ccb7.s1.eu.hivemq.cloud:8884/mqtt';
     const MQTT_USER = 'stethoscope';
