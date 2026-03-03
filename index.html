@@ -41,7 +41,10 @@
     .msg { padding: 10px 14px; border-radius: 18px; font-size: 14px; max-width: 85%; line-height: 1.4; }
     .msg-system { background: #e0e7ff; color: #3730a3; align-self: flex-start; border-bottom-left-radius: 4px; }
     .msg-user { background: #3b82f6; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
-    .msg-ai { background: #10b981; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; font-weight: 500;}
+    
+    /* NEW: Dynamic AI Bubble Colors */
+    .msg-ai-normal { background: #10b981; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; font-weight: 400;}
+    .msg-ai-review { background: #ef4444; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; font-weight: 400;}
 
     .ai-input-group { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #e2e8f0; background: #fff; }
     .ai-input-group input { flex-grow: 1; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 20px; outline: none; font-size: 14px; }
@@ -87,7 +90,15 @@
     // ==========================================
     let GEMINI_API_KEY = "AIzaSyAP7JybHJzDZPMk88ecmmoKZnDUEgKQY7w";
 
-    
+    if (!GEMINI_API_KEY || GEMINI_API_KEY === "YOUR_API_KEY_HERE") {
+      GEMINI_API_KEY = prompt("Enter your Gemini API Key to enable the AI Assistant (It will be saved locally):");
+      if (GEMINI_API_KEY) {
+        localStorage.setItem("gemini_key", GEMINI_API_KEY);
+      } else {
+        alert("AI Assistant disabled. Refresh the page to enter a key.");
+      }
+    }
+
     const WSS_URL = 'wss://669c1d46b8674baa9e5592f13461ccb7.s1.eu.hivemq.cloud:8884/mqtt';
     const MQTT_USER = 'stethoscope';
     const MQTT_PASS = 'Steth123';
@@ -102,15 +113,17 @@
     let chatStep = 0;
     let triageContext = { activity: "", symptoms: "" };
     let finalAiReport = "";
+    
+    // Global State Tracker for the Report
+    let currentAIState = "REVIEW"; 
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     let client=null, connected=false, paused=true; 
     let bpmHistory=[], lastBeatTime=0, beatIntervals=[];
 
-    // --- CONTINUOUS PHASE ACCUMULATOR VARIABLES ---
     let isMonitoring = false;
     let targetLiveBPM = 0;
-    let currentPhase = 0; // Tracks position in the heartbeat from 0.0 to 1.0
+    let currentPhase = 0; 
 
     const canvas=document.getElementById('wave');
     const ctx=canvas.getContext('2d');
@@ -157,22 +170,19 @@
       ctx.stroke();
     }
 
-    // --- THE FIX: Flawless Phase Accumulator Loop ---
     function updateWave(){
       if(!paused && isMonitoring){
         for(let j=0; j<SCROLL_SPEED; j++) {
           let sample = 0;
           
           if (targetLiveBPM > 0) {
-            // Calculate exactly how much 'phase' one single pixel represents
-            const pixelsPerSecond = 60 * SCROLL_SPEED; // approx 60 frames per sec
+            const pixelsPerSecond = 60 * SCROLL_SPEED; 
             const beatsPerSecond = targetLiveBPM / 60;
             const pixelsPerBeat = pixelsPerSecond / beatsPerSecond;
             const phaseIncrement = 1.0 / pixelsPerBeat;
 
             currentPhase += phaseIncrement;
 
-            // When phase hits 1.0, the heartbeat cycle loops perfectly
             if (currentPhase >= 1.0) {
                currentPhase -= 1.0;
                playLubDub();
@@ -187,7 +197,6 @@
             sample = (lub + dub + drift) * 0.6;
           }
           
-          // Organic baseline noise
           sample += (Math.random() * 0.01 - 0.005); 
           
           waveformData.push(sample);
@@ -249,7 +258,6 @@
       statusDiv.textContent = "Demo Session Complete";
       statusDiv.classList.remove('status-active');
 
-      // Draw the static demo wave using the new Phase Accumulator logic
       waveformData = [];
       let demoPhase = 0;
       const pixelsPerSecond = 60 * SCROLL_SPEED;
@@ -369,8 +377,15 @@
               aiText = aiText.replace("[REVIEW]", "").trim();
           }
 
+          currentAIState = stateTag;
           finalAiReport = aiText;
-          addChatMessage("AI", finalAiReport, "msg-ai");
+          
+          // --- NEW: Color Code the Dashboard Chat Bubble ---
+          const bubbleClass = (stateTag === "NORMAL") ? "msg-ai-normal" : "msg-ai-review";
+          const bubbleHeader = (stateTag === "NORMAL") ? "🟢 NORMAL STATUS" : "🔴 REVIEW RECOMMENDED";
+          
+          addChatMessage("AI", `<strong>${bubbleHeader}</strong><br><br>${finalAiReport}`, bubbleClass);
+          
           document.getElementById('reportBtn').style.display = 'inline-block';
 
           if (client && connected) {
@@ -421,7 +436,7 @@
       paused = false; 
       isMonitoring = false;
       targetLiveBPM = 0;
-      currentPhase = 0; // Reset Phase
+      currentPhase = 0; 
       
       bpmHistory = []; beatIntervals = []; lastBeatTime = 0; 
       waveformData = new Array(width).fill(0);
@@ -476,7 +491,6 @@
             let avgInterval = beatIntervals.reduce((a, b) => a + b) / beatIntervals.length;
             let rawBpm = Math.round(60000 / avgInterval);
             
-            // Smoothly update the target BPM. The phase accumulator handles the transition flawlessly!
             targetLiveBPM = rawBpm + Math.floor(Math.random() * 7) - 3;
             
             if (targetLiveBPM > 40 && targetLiveBPM < 200) {
@@ -499,7 +513,12 @@
       const pName = document.getElementById('patientName').value || "Patient";
       const pAge = document.getElementById('patientAge').value ? (document.getElementById('patientAge').value + " yrs") : "N/A";
 
-      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Health Report: ${pName}<\/title><style>body { font-family: sans-serif; background: #f8fafc; color: #0f172a; text-align: center; padding: 20px; } h1 { color: #1e3a8a; margin-bottom: 5px; } h2 { color: #475569; font-weight: 400; font-size: 18px; margin-top: 0; } img { max-width: 100%; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; } .ai-box { max-width: 400px; margin: 0 auto 20px auto; background: #fff; padding: 15px; border-radius: 8px; border-left: 5px solid #8b5cf6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left; line-height: 1.5; } .disclaimer { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 10px; border-radius: 6px; margin-top: 15px; border: 1px solid #e2e8f0; }<\/style><\/head><body><h1>Home Stethoscope Report<\/h1><h2>Patient: ${pName} | Age: ${pAge}<\/h2><p><b>Date:<\/b> ${new Date().toLocaleString()}<\/p><p><b>Recorded Average:<\/b> ${currentSessionAvgBPM} BPM<\/p><div class="ai-box"><strong>✨ AI Health Assessment:<\/strong><br><br>${finalAiReport}<div class="disclaimer"><b>Disclaimer:<\/b> This assessment was generated by an Artificial Intelligence assistant based on your home telemetry and responses. It is NOT a substitute for professional medical advice, diagnosis, or treatment. Please share this report with your doctor for clinical review.<\/div><\/div><img src="${snapshot}" alt="Waveform Snapshot"><\/body><\/html>`;
+      const isNormal = (currentAIState === "NORMAL");
+      const stateColor = isNormal ? "#10b981" : "#ef4444"; 
+      const stateBg = isNormal ? "#dcfce7" : "#fee2e2";
+      const stateText = isNormal ? "🟢 NORMAL - No Immediate Action Required" : "🔴 REVIEW - Doctor Consultation Recommended";
+
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Health Report: ${pName}<\/title><style>body { font-family: sans-serif; background: #f8fafc; color: #0f172a; text-align: center; padding: 20px; } h1 { color: #1e3a8a; margin-bottom: 5px; } h2 { color: #475569; font-weight: 400; font-size: 18px; margin-top: 0; } img.waveform { max-width: 100%; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); } .status-badge { display: inline-block; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 18px; margin-bottom: 20px; background-color: ${stateBg}; color: ${stateColor}; border: 2px solid ${stateColor}; } .ai-box { max-width: 550px; margin: 0 auto 30px auto; background: #fff; padding: 20px; border-radius: 8px; border-left: 6px solid ${stateColor}; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: left; line-height: 1.6; } .disclaimer { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 12px; border-radius: 6px; margin-top: 20px; border: 1px solid #e2e8f0; }<\/style><\/head><body><h1>Home Stethoscope Report<\/h1><h2>Patient: ${pName} | Age: ${pAge}<\/h2><p><b>Date:<\/b> ${new Date().toLocaleString()}<\/p><p style="font-size: 22px;"><b>Recorded Average:<\/b> ${currentSessionAvgBPM} BPM<\/p><div class="status-badge">${stateText}<\/div><div class="ai-box"><strong>✨ AI Health Assessment:<\/strong><br><br>${finalAiReport}<div class="disclaimer"><b>Disclaimer:<\/b> This assessment was generated by an Artificial Intelligence assistant based on your home telemetry and responses. It is NOT a substitute for professional medical advice, diagnosis, or treatment. Please share this report with your doctor for clinical review.<\/div><\/div><div style="max-width: 800px; margin: 0 auto;"><h3>Recorded Waveform Snippet<\/h3><img class="waveform" src="${snapshot}" alt="Waveform Snapshot"><\/div><\/body><\/html>`;
       
       const blob = new Blob([html], {type: 'text/html'});
       const fileName = `Health_Report_${pName.replace(/\s+/g, '_')}_${Date.now()}.html`;
@@ -514,7 +533,7 @@
         try {
           await navigator.share({
             title: `Health Report - ${pName}`,
-            text: `Hi Doctor, here is my recent stethoscope telemetry report for review. Avg BPM: ${currentSessionAvgBPM}. AI Notes: "${finalAiReport}"`,
+            text: `Hi Doctor, here is my recent stethoscope telemetry report for review. Avg BPM: ${currentSessionAvgBPM}. AI Status: ${currentAIState}`,
             files: [file] 
           });
         } catch (error) { 
