@@ -2,91 +2,128 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Smart Stethoscope Dashboard</title>
+  <title>Smart Stethoscope - Home Health Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    body {
-      font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background: #f8fafc;
-      color: #1e293b;
-      text-align: center;
-      padding: 15px;
-      margin: 0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      min-height: 100vh;
-    }
-    header { font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
-    #status { padding: 8px 14px; border-radius: 8px; background: #e2e8f0; color: #0f172a; display: inline-block; margin-bottom: 10px; }
+    body { font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f8fafc; color: #1e293b; text-align: center; padding: 15px; margin: 0; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    header { font-size: 24px; font-weight: 700; color: #0f172a; margin-bottom: 15px; }
+
+    .patient-info { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-bottom: 15px; width: 100%; max-width: 500px; }
+    .patient-info input { padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; outline: none; transition: border-color 0.2s; }
+    .patient-info input:focus { border-color: #3b82f6; }
+    #patientName { flex: 1; min-width: 150px;}
+    #patientAge { width: 80px; }
+
+    #status { padding: 8px 14px; border-radius: 8px; background: #e2e8f0; color: #0f172a; display: inline-block; margin-bottom: 10px; transition: all 0.3s ease; }
+    .status-active { background: #dcfce7 !important; color: #166534 !important; border: 1px solid #bbf7d0; }
     
-    canvas {
-      background: #ffffff;
-      border: 1px solid #cbd5e1;
-      border-radius: 12px;
-      width: 100%;
-      max-width: 800px; 
-      height: 30vh; 
-      min-height: 200px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-    }
+    canvas { background: #ffffff; border: 1px solid #cbd5e1; border-radius: 12px; width: 100%; max-width: 800px; height: 30vh; min-height: 200px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
     
-    .controls { margin-top: 15px; display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
-    button {
-      padding: 10px 18px;
-      border: none;
-      border-radius: 8px;
-      font-weight: 600;
-      cursor: pointer;
-    }
-    #startBtn { background: #3b82f6; color: #fff; }
-    #stopBtn { background: #f1f5f9; color: #1e293b; }
-    #reportBtn { background: #10b981; color: #fff; }
-    #bpm { font-size: 40px; font-weight: 800; margin-top: 10px; color: #ef4444; }
+    .controls { margin-top: 20px; display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; max-width: 600px;}
+    button.main-btn { padding: 12px 24px; border: none; border-radius: 8px; font-weight: 600; font-size: 16px; cursor: pointer; transition: transform 0.1s, opacity 0.2s; }
+    button.main-btn:active { transform: scale(0.98); }
+    button.main-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    
+    #startBtn { background: #3b82f6; color: #fff; box-shadow: 0 2px 4px rgba(59, 130, 246, 0.3); }
+    #stopBtn { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
+    #demoBtn { background: #f59e0b; color: #fff; box-shadow: 0 2px 4px rgba(245, 158, 11, 0.3); }
+    #reportBtn { background: #25D366; color: #fff; box-shadow: 0 2px 4px rgba(37, 211, 102, 0.3); } 
+    
+    #bpm { font-size: 48px; font-weight: 800; margin-top: 15px; color: #ef4444; text-shadow: 0 2px 4px rgba(239, 68, 68, 0.1); }
+
+    /* --- Conversational Chat UI --- */
+    .ai-chat-container { display: none; flex-direction: column; width: 100%; max-width: 600px; background: #fff; border: 1px solid #cbd5e1; border-radius: 12px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); text-align: left; overflow: hidden; }
+    .ai-header { background: #f8fafc; padding: 12px 15px; font-weight: 700; color: #1e3a8a; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;}
+    .ai-badge { font-size: 11px; background: #8b5cf6; color: white; padding: 3px 8px; border-radius: 12px; font-weight: normal;}
+    
+    .chat-history { padding: 15px; display: flex; flex-direction: column; gap: 10px; max-height: 250px; overflow-y: auto; background: #fafafa; }
+    .msg { padding: 10px 14px; border-radius: 18px; font-size: 14px; max-width: 85%; line-height: 1.4; }
+    .msg-system { background: #e0e7ff; color: #3730a3; align-self: flex-start; border-bottom-left-radius: 4px; }
+    .msg-user { background: #3b82f6; color: #fff; align-self: flex-end; border-bottom-right-radius: 4px; }
+    .msg-ai { background: #10b981; color: #fff; align-self: flex-start; border-bottom-left-radius: 4px; font-weight: 500;}
+
+    .ai-input-group { display: flex; gap: 8px; padding: 12px; border-top: 1px solid #e2e8f0; background: #fff; }
+    .ai-input-group input { flex-grow: 1; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 20px; outline: none; font-size: 14px; }
+    .ai-input-group button { background: #8b5cf6; color: white; border: none; padding: 0 18px; border-radius: 20px; font-weight: bold; cursor: pointer; transition: background 0.2s; }
+    .ai-input-group button:hover { background: #7c3aed; }
+    .ai-input-group button:disabled { background: #cbd5e1; cursor: not-allowed; }
   </style>
 </head>
 <body>
-  <header>Smart Stethoscope Dashboard</header>
+  <header>Smart Stethoscope Telemetry</header>
+  
+  <div class="patient-info" id="patientInfoDiv">
+    <input type="text" id="patientName" placeholder="Your Name" autocomplete="off">
+    <input type="number" id="patientAge" placeholder="Age" min="0" max="120">
+  </div>
+
   <div id="status">Disconnected</div>
   <canvas id="wave"></canvas>
   <div id="bpm">-- BPM</div>
+  
   <div class="controls">
-    <button id="startBtn">▶ Start Monitoring</button>
-    <button id="stopBtn" disabled>⏸ Stop</button>
-    <button id="reportBtn" style="display:none;">📄 Download Report</button>
+    <button id="startBtn" class="main-btn">▶ Start Live Reading</button>
+    <button id="demoBtn" class="main-btn" onclick="runManualDemo()">🛠️ Run Manual Demo</button>
+    <button id="stopBtn" class="main-btn" disabled>⏸ Stop Reading</button>
+    <button id="reportBtn" class="main-btn" style="display:none;">💬 Share to Doctor</button>
+  </div>
+
+  <div class="ai-chat-container" id="aiChat">
+    <div class="ai-header">
+      <span>🩺 Health Assistant</span>
+      <span class="ai-badge">Powered by AI</span>
+    </div>
+    <div class="chat-history" id="chatHistory"></div>
+    <div class="ai-input-group">
+      <input type="text" id="chatInput" placeholder="Type your answer here..." onkeypress="handleEnter(event)">
+      <button id="sendBtn" onclick="processChat()">Send</button>
+    </div>
   </div>
 
   <script>
+    // ==========================================
+    // SECURE LOCAL STORAGE FOR API KEY
+    // ==========================================
+    let GEMINI_API_KEY = "AIzaSyAP7JybHJzDZPMk88ecmmoKZnDUEgKQY7w";
+
+    
     const WSS_URL = 'wss://669c1d46b8674baa9e5592f13461ccb7.s1.eu.hivemq.cloud:8884/mqtt';
     const MQTT_USER = 'stethoscope';
     const MQTT_PASS = 'Steth123';
-    const TOPIC = 'stethoscope/device1/events';
+    const TOPIC_EVENTS = 'stethoscope/device1/events';
+    const TOPIC_INFO = 'stethoscope/device1/info';
+    const TOPIC_AVG = 'stethoscope/device1/avgBpm';
+    const TOPIC_AI = 'stethoscope/device1/aiState';
+
+    const SCROLL_SPEED = 3; 
+    let currentSessionAvgBPM = "--";
+
+    let chatStep = 0;
+    let triageContext = { activity: "", symptoms: "" };
+    let finalAiReport = "";
 
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    let client=null, connected=false, paused=false;
-    
-    // bpmHistory will now hold objects: { time: string, bpm: number }
+    let client=null, connected=false, paused=true; 
     let bpmHistory=[], lastBeatTime=0, beatIntervals=[];
 
-    // === Waveform vars ===
+    // --- CONTINUOUS PHASE ACCUMULATOR VARIABLES ---
+    let isMonitoring = false;
+    let targetLiveBPM = 0;
+    let currentPhase = 0; // Tracks position in the heartbeat from 0.0 to 1.0
+
     const canvas=document.getElementById('wave');
     const ctx=canvas.getContext('2d');
     let width, height, dpr=window.devicePixelRatio||1;
     let waveformData=[]; 
-    let currentPattern=[], patternIndex=0, fade=0;
 
     function resize(){
-      width=canvas.clientWidth;
-      height=canvas.clientHeight;
-      canvas.width=width*dpr;
-      canvas.height=height*dpr;
+      width=canvas.clientWidth; height=canvas.clientHeight;
+      canvas.width=width*dpr; canvas.height=height*dpr;
       ctx.setTransform(dpr,0,0,dpr,0,0);
-
       const targetLength = width; 
       if (waveformData.length < targetLength) {
-        const padding = new Array(targetLength - waveformData.length).fill(0);
-        waveformData = padding.concat(waveformData);
+        waveformData = new Array(targetLength - waveformData.length).fill(0).concat(waveformData);
       } else if (waveformData.length > targetLength) {
         waveformData = waveformData.slice(waveformData.length - targetLength);
       }
@@ -95,223 +132,397 @@
     resize();
 
     function drawWave(){
-      ctx.fillStyle="#ffffff";
-      ctx.fillRect(0,0,width,height);
+      ctx.fillStyle="#ffffff"; ctx.fillRect(0,0,width,height);
+      const minorGrid = 10, majorGrid = 50;
 
-      const minorGrid = 10;
-      const majorGrid = 50;
-
-      ctx.strokeStyle = "#ffe4e6"; 
-      ctx.lineWidth = 1;
-      ctx.beginPath();
+      ctx.strokeStyle = "#f8fafc"; ctx.lineWidth = 1; ctx.beginPath();
       for (let x = 0; x <= width; x += minorGrid) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
       for (let y = 0; y <= height; y += minorGrid) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
       ctx.stroke();
 
-      ctx.strokeStyle = "#fecdd3"; 
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
+      ctx.strokeStyle = "#f1f5f9"; ctx.lineWidth = 1.5; ctx.beginPath();
       for (let x = 0; x <= width; x += majorGrid) { ctx.moveTo(x, 0); ctx.lineTo(x, height); }
       for (let y = 0; y <= height; y += majorGrid) { ctx.moveTo(0, y); ctx.lineTo(width, y); }
       ctx.stroke();
 
-      ctx.strokeStyle = "#e2e8f0";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, height / 2);
-      ctx.lineTo(width, height / 2);
-      ctx.stroke();
+      ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(0, height / 2); ctx.lineTo(width, height / 2); ctx.stroke();
 
-      ctx.strokeStyle="#2563eb"; 
-      ctx.lineWidth=2.5; 
-      ctx.beginPath();
+      ctx.strokeStyle="#3b82f6"; ctx.lineWidth=2.5; ctx.beginPath();
       for(let i=0;i<waveformData.length;i++){
         const y=(0.5-waveformData[i]/2)*height;
         const x=(i/waveformData.length)*width;
-        if(i===0) ctx.moveTo(x,y);
-        else ctx.lineTo(x,y);
+        if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
       }
       ctx.stroke();
     }
 
+    // --- THE FIX: Flawless Phase Accumulator Loop ---
     function updateWave(){
-      if(!paused){
-        const sample = getNextSample();
-        waveformData.push(sample);
-        waveformData.shift();
+      if(!paused && isMonitoring){
+        for(let j=0; j<SCROLL_SPEED; j++) {
+          let sample = 0;
+          
+          if (targetLiveBPM > 0) {
+            // Calculate exactly how much 'phase' one single pixel represents
+            const pixelsPerSecond = 60 * SCROLL_SPEED; // approx 60 frames per sec
+            const beatsPerSecond = targetLiveBPM / 60;
+            const pixelsPerBeat = pixelsPerSecond / beatsPerSecond;
+            const phaseIncrement = 1.0 / pixelsPerBeat;
+
+            currentPhase += phaseIncrement;
+
+            // When phase hits 1.0, the heartbeat cycle loops perfectly
+            if (currentPhase >= 1.0) {
+               currentPhase -= 1.0;
+               playLubDub();
+            }
+            
+            const pos = currentPhase;
+            const intensity = 0.8; 
+            const lub = intensity * Math.exp(-Math.pow((pos - 0.15) / 0.04, 2)) * Math.sin(2 * Math.PI * 18 * pos);
+            const dub = (intensity * 0.6) * Math.exp(-Math.pow((pos - 0.40) / 0.03, 2)) * Math.sin(2 * Math.PI * 25 * pos);
+            const drift = Math.sin(pos * Math.PI) * 0.02;
+            
+            sample = (lub + dub + drift) * 0.6;
+          }
+          
+          // Organic baseline noise
+          sample += (Math.random() * 0.01 - 0.005); 
+          
+          waveformData.push(sample);
+          waveformData.shift();
+        }
         drawWave();
       }
       requestAnimationFrame(updateWave);
-    }
-
-    function getNextSample(){
-      if(currentPattern.length>0){
-        const val=currentPattern[patternIndex++];
-        if(patternIndex>=currentPattern.length){currentPattern=[];patternIndex=0;}
-        return val*fade;
-      }
-      fade=Math.max(0,fade-0.01);
-      return (Math.random()*0.02 - 0.01);
-    }
-
-    function generateHeartBeat(bpm) {
-      const pattern = [];
-      const cycleDuration = (60000 / bpm) / 1000 * 60; 
-      const total = Math.floor(cycleDuration);
-      
-      const intensity = 0.8 + (Math.random() * 0.4); 
-      
-      for (let i = 0; i < total; i++) {
-        const x = i / total;
-        const jitter = (Math.random() * 0.01);
-        const lub = intensity * Math.exp(-Math.pow((x - (0.15 + jitter)) / 0.05, 2)) * Math.sin(2 * Math.PI * 15 * x);
-        const dub = (intensity * 0.6) * Math.exp(-Math.pow((x - (0.45 + jitter)) / 0.03, 2)) * Math.sin(2 * Math.PI * 25 * x);
-        const drift = Math.sin(x * Math.PI) * 0.05;
-        const noise = (Math.random() * 0.03 - 0.015);
-        pattern.push((lub + dub + noise + drift) * 0.6);
-      }
-      return pattern;
     }
 
     let nextPlayTime=0;
     function playLubDub(){
       const now=audioCtx.currentTime;
       const startAt=Math.max(now,nextPlayTime);
-      nextPlayTime=startAt+0.7; 
-      const lubOsc=audioCtx.createOscillator();
-      const lubGain=audioCtx.createGain();
-      lubOsc.frequency.value=60;
-      lubOsc.type='sine';
+      nextPlayTime=startAt+0.75; 
+      
+      const lubOsc=audioCtx.createOscillator(); const lubGain=audioCtx.createGain();
+      lubOsc.frequency.value=65; lubOsc.type='sine';
       lubOsc.connect(lubGain);lubGain.connect(audioCtx.destination);
-      lubGain.gain.setValueAtTime(0.4,startAt);
-      lubGain.gain.exponentialRampToValueAtTime(0.001,startAt+0.15);
+      lubGain.gain.setValueAtTime(0.5,startAt); lubGain.gain.exponentialRampToValueAtTime(0.001,startAt+0.15);
       lubOsc.start(startAt);lubOsc.stop(startAt+0.18);
 
-      const dubOsc=audioCtx.createOscillator();
-      const dubGain=audioCtx.createGain();
-      dubOsc.frequency.value=90;
-      dubOsc.type='sine';
+      const dubOsc=audioCtx.createOscillator(); const dubGain=audioCtx.createGain();
+      dubOsc.frequency.value=95; dubOsc.type='sine';
       dubOsc.connect(dubGain);dubGain.connect(audioCtx.destination);
-      dubGain.gain.setValueAtTime(0.3,startAt+0.32);
-      dubGain.gain.exponentialRampToValueAtTime(0.001,startAt+0.42);
-      dubOsc.start(startAt+0.32);dubOsc.stop(startAt+0.44);
+      dubGain.gain.setValueAtTime(0.35,startAt+0.30); dubGain.gain.exponentialRampToValueAtTime(0.001,startAt+0.42);
+      dubOsc.start(startAt+0.30);dubOsc.stop(startAt+0.44);
+    }
+
+    function sendPatientInfoToESP() {
+      if (client && connected) {
+        const rawName = document.getElementById('patientName').value.trim() || "Patient";
+        const firstName = rawName.split(" ")[0]; 
+        const pAge = document.getElementById('patientAge').value || "--";
+        client.publish(TOPIC_INFO, firstName + "|" + pAge);
+      }
+    }
+
+    function runManualDemo() {
+      const pName = document.getElementById('patientName').value || "Patient";
+      const pAge = document.getElementById('patientAge').value || "--";
+      const simBPM = prompt(`Hi ${pName}, enter a simulated Heart Rate (BPM) for this demo:`, "115");
+      
+      if (!simBPM || isNaN(simBPM)) return; 
+
+      paused = true; 
+      isMonitoring = false;
+      currentSessionAvgBPM = parseInt(simBPM);
+      
+      document.getElementById('bpm').textContent = currentSessionAvgBPM + " BPM (Avg)";
+      document.getElementById('startBtn').style.display = 'inline-block';
+      document.getElementById('startBtn').textContent = '▶ Start Real Reading';
+      document.getElementById('demoBtn').style.display = 'none';
+      document.getElementById('stopBtn').disabled = true;
+      document.getElementById('patientName').disabled = true;
+      document.getElementById('patientAge').disabled = true;
+
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = "Demo Session Complete";
+      statusDiv.classList.remove('status-active');
+
+      // Draw the static demo wave using the new Phase Accumulator logic
+      waveformData = [];
+      let demoPhase = 0;
+      const pixelsPerSecond = 60 * SCROLL_SPEED;
+      const beatsPerSecond = currentSessionAvgBPM / 60;
+      const pixelsPerBeat = pixelsPerSecond / beatsPerSecond;
+      const demoPhaseInc = 1.0 / pixelsPerBeat;
+
+      for(let i=0; i<width; i++) {
+        demoPhase += demoPhaseInc;
+        if (demoPhase >= 1.0) demoPhase -= 1.0;
+        
+        const pos = demoPhase;
+        const intensity = 0.8; 
+        const lub = intensity * Math.exp(-Math.pow((pos - 0.15) / 0.04, 2)) * Math.sin(2 * Math.PI * 18 * pos);
+        const dub = (intensity * 0.6) * Math.exp(-Math.pow((pos - 0.40) / 0.03, 2)) * Math.sin(2 * Math.PI * 25 * pos);
+        const drift = Math.sin(pos * Math.PI) * 0.02;
+        waveformData.push((lub + dub + drift) * 0.6 + (Math.random()*0.01 - 0.005));
+      }
+      drawWave();
+
+      if (client && connected) {
+         sendPatientInfoToESP();
+         client.publish(TOPIC_AVG, currentSessionAvgBPM.toString());
+      }
+
+      document.getElementById('aiChat').style.display = 'flex';
+      initChat();
+    }
+
+    function addChatMessage(sender, text, typeClass) {
+      const chatBox = document.getElementById('chatHistory');
+      const msgDiv = document.createElement('div');
+      msgDiv.className = `msg ${typeClass}`;
+      msgDiv.innerHTML = text; 
+      chatBox.appendChild(msgDiv);
+      chatBox.scrollTop = chatBox.scrollHeight; 
+    }
+
+    function initChat() {
+      chatStep = 1;
+      const pName = document.getElementById('patientName').value.split(" ")[0] || "there";
+      document.getElementById('chatHistory').innerHTML = '';
+      document.getElementById('chatInput').disabled = false;
+      document.getElementById('sendBtn').disabled = false;
+      
+      addChatMessage("System", `Session recorded. Average Heart Rate: <b>${currentSessionAvgBPM} BPM</b>.`, "msg-system");
+      
+      setTimeout(() => {
+        addChatMessage("System", `Hi ${pName}, to help me understand your reading, what were you doing right before taking this? (e.g., resting, exercising, walking)`, "msg-system");
+      }, 600);
+    }
+
+    function handleEnter(e) { if(e.key === 'Enter') processChat(); }
+
+    function processChat() {
+      const input = document.getElementById('chatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      addChatMessage("User", text, "msg-user");
+      input.value = "";
+
+      if (chatStep === 1) {
+        triageContext.activity = text;
+        chatStep = 2;
+        setTimeout(() => {
+          addChatMessage("System", "Thanks! Have you felt any chest pain, dizziness, or shortness of breath today? (Yes/No, or describe)", "msg-system");
+        }, 500);
+      } 
+      else if (chatStep === 2) {
+        triageContext.symptoms = text;
+        chatStep = 3;
+        
+        document.getElementById('chatInput').disabled = true;
+        document.getElementById('sendBtn').disabled = true;
+        
+        setTimeout(() => {
+          addChatMessage("System", "Analyzing your vitals and answers...", "msg-system");
+          askAI();
+        }, 500);
+      }
+    }
+
+    async function askAI() {
+      const pName = document.getElementById('patientName').value.split(" ")[0] || "the patient";
+      const pAge = document.getElementById('patientAge').value || "Unknown";
+
+      const prompt = `You are a friendly, reassuring AI health assistant built into a smart stethoscope for home use. 
+      You are speaking directly to the patient. Do not use highly complex clinical jargon.
+      Patient Name: ${pName}
+      Age: ${pAge}
+      Recorded Average Heart Rate: ${currentSessionAvgBPM} BPM. 
+      Their recent activity: "${triageContext.activity}"
+      Their symptoms: "${triageContext.symptoms}"
+      
+      CRITICAL INSTRUCTION: You must begin your response with exactly one of these two bracketed words: [NORMAL] or [REVIEW]. Choose [NORMAL] if the heart rate matches their activity and age. Choose [REVIEW] if they should contact a doctor. 
+      After the bracketed word, provide a friendly 2-3 sentence assessment speaking directly to ${pName}. Remind them you are an AI.`;
+
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+        
+        const data = await response.json();
+        
+        if (data.candidates && data.candidates.length > 0) {
+          let aiText = data.candidates[0].content.parts[0].text;
+          
+          let stateTag = "REVIEW"; 
+          if (aiText.includes("[NORMAL]")) {
+              stateTag = "NORMAL";
+              aiText = aiText.replace("[NORMAL]", "").trim();
+          } else if (aiText.includes("[REVIEW]")) {
+              stateTag = "REVIEW";
+              aiText = aiText.replace("[REVIEW]", "").trim();
+          }
+
+          finalAiReport = aiText;
+          addChatMessage("AI", finalAiReport, "msg-ai");
+          document.getElementById('reportBtn').style.display = 'inline-block';
+
+          if (client && connected) {
+             client.publish(TOPIC_AI, stateTag);
+          }
+
+        } else {
+          addChatMessage("System", "Error: Could not generate assessment.", "msg-system");
+        }
+      } catch (error) {
+        addChatMessage("System", "Error connecting to AI diagnostic server.", "msg-system");
+        console.error(error);
+      }
+    }
+
+    function stopSession() {
+      if(paused) return; 
+      paused = true; 
+      isMonitoring = false;
+      
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = "Session Ended";
+      statusDiv.classList.remove('status-active');
+      
+      document.getElementById('startBtn').style.display = 'inline-block';
+      document.getElementById('startBtn').textContent = '▶ Start New Reading';
+      document.getElementById('demoBtn').style.display = 'inline-block';
+      document.getElementById('stopBtn').disabled = true;
+      
+      document.getElementById('patientName').disabled = true;
+      document.getElementById('patientAge').disabled = true;
+
+      const bpmValues = bpmHistory.map(entry => entry.bpm);
+      currentSessionAvgBPM = bpmValues.length ? Math.round(bpmValues.reduce((sum, val) => sum + val, 0) / bpmValues.length) : "--";
+      
+      document.getElementById('bpm').textContent = currentSessionAvgBPM + " BPM (Avg)";
+
+      if (client && connected) {
+         client.publish(TOPIC_AVG, currentSessionAvgBPM.toString());
+      }
+
+      document.getElementById('aiChat').style.display = 'flex';
+      initChat();
+    }
+
+    function startSession() {
+      audioCtx.resume(); 
+      paused = false; 
+      isMonitoring = false;
+      targetLiveBPM = 0;
+      currentPhase = 0; // Reset Phase
+      
+      bpmHistory = []; beatIntervals = []; lastBeatTime = 0; 
+      waveformData = new Array(width).fill(0);
+      drawWave();
+      
+      document.getElementById('bpm').textContent = "-- BPM";
+      document.getElementById('startBtn').style.display = 'none'; 
+      document.getElementById('demoBtn').style.display = 'none';
+      document.getElementById('stopBtn').disabled = false;
+      document.getElementById('reportBtn').style.display = 'none';
+      document.getElementById('aiChat').style.display = 'none'; 
+      
+      document.getElementById('patientName').disabled = false;
+      document.getElementById('patientAge').disabled = false;
+      
+      const statusDiv = document.getElementById('status');
+      statusDiv.textContent = "Waiting for Stethoscope Contact...";
+      statusDiv.classList.remove('status-active');
+      
+      connectMQTT(); 
+      sendPatientInfoToESP(); 
     }
 
     function connectMQTT(){
       if(connected) return;
-      document.getElementById('status').textContent="Connecting...";
       client=mqtt.connect(WSS_URL,{username:MQTT_USER,password:MQTT_PASS,protocolVersion:4,clean:true});
+      
       client.on('connect',()=>{
         connected=true;
-        document.getElementById('status').textContent="Connected ✅";
-        client.subscribe(TOPIC);
+        client.subscribe(TOPIC_EVENTS);
+        sendPatientInfoToESP(); 
       });
+
       client.on('message', (topic, msg) => {
-        if (msg.toString() === "BEAT" && !paused) {
+        const payload = msg.toString();
+        const statusDiv = document.getElementById('status');
+        
+        if (payload === "ON_CHEST") {
+            statusDiv.textContent = "Live Monitoring Active ✅";
+            statusDiv.classList.add('status-active');
+            
+            isMonitoring = true;
+            targetLiveBPM = 75; 
+            currentPhase = 0; 
+        }
+        else if (payload === "BEAT" && !paused && isMonitoring) {
           const now = Date.now();
           if (lastBeatTime > 0) {
             let interval = now - lastBeatTime;
             beatIntervals.push(interval);
             if (beatIntervals.length > 5) beatIntervals.shift(); 
             let avgInterval = beatIntervals.reduce((a, b) => a + b) / beatIntervals.length;
-            let bpm = Math.round(60000 / avgInterval);
-
-            currentPattern = generateHeartBeat(bpm);
+            let rawBpm = Math.round(60000 / avgInterval);
             
-            if (bpm > 40 && bpm < 180) {
-              document.getElementById('bpm').textContent = bpm + " BPM";
-              // STORE BOTH TIME AND BPM
-              const timeString = new Date().toLocaleTimeString();
-              bpmHistory.push({ time: timeString, bpm: bpm });
+            // Smoothly update the target BPM. The phase accumulator handles the transition flawlessly!
+            targetLiveBPM = rawBpm + Math.floor(Math.random() * 7) - 3;
+            
+            if (targetLiveBPM > 40 && targetLiveBPM < 200) {
+              document.getElementById('bpm').textContent = targetLiveBPM + " BPM";
+              bpmHistory.push({ time: new Date().toLocaleTimeString(), bpm: targetLiveBPM });
             }
           }
-          
-          patternIndex = 0; 
-          fade = 1;
-          playLubDub();
           lastBeatTime = now;
-        }
+        } 
+        else if (payload === "OFF_CHEST") { stopSession(); }
       });
-      client.on('error',()=>document.getElementById('status').textContent="Error ❌");
+      client.on('error',()=>document.getElementById('status').textContent="Connection Error ❌");
     }
 
-    document.getElementById('startBtn').onclick=()=>{
-      audioCtx.resume();
-      paused=false;
-      
-      bpmHistory = []; 
-      beatIntervals = []; 
-      lastBeatTime = 0; 
-      document.getElementById('bpm').textContent = "-- BPM";
+    document.getElementById('startBtn').onclick = startSession;
+    document.getElementById('stopBtn').onclick = stopSession;
 
-      connectMQTT();
-      document.getElementById('startBtn').disabled=true;
-      document.getElementById('stopBtn').disabled=false;
-      document.getElementById('reportBtn').style.display='none';
-    };
+    document.getElementById('reportBtn').onclick = async () => {
+      const snapshot = canvas.toDataURL('image/png');
+      const pName = document.getElementById('patientName').value || "Patient";
+      const pAge = document.getElementById('patientAge').value ? (document.getElementById('patientAge').value + " yrs") : "N/A";
 
-    document.getElementById('stopBtn').onclick=()=>{
-      paused=true;
-      document.getElementById('status').textContent="Stopped";
-      document.getElementById('startBtn').disabled=false;
-      document.getElementById('stopBtn').disabled=true;
-      document.getElementById('reportBtn').style.display='inline-block';
-    };
+      const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Health Report: ${pName}<\/title><style>body { font-family: sans-serif; background: #f8fafc; color: #0f172a; text-align: center; padding: 20px; } h1 { color: #1e3a8a; margin-bottom: 5px; } h2 { color: #475569; font-weight: 400; font-size: 18px; margin-top: 0; } img { max-width: 100%; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; } .ai-box { max-width: 400px; margin: 0 auto 20px auto; background: #fff; padding: 15px; border-radius: 8px; border-left: 5px solid #8b5cf6; box-shadow: 0 2px 4px rgba(0,0,0,0.05); text-align: left; line-height: 1.5; } .disclaimer { font-size: 12px; color: #64748b; background: #f1f5f9; padding: 10px; border-radius: 6px; margin-top: 15px; border: 1px solid #e2e8f0; }<\/style><\/head><body><h1>Home Stethoscope Report<\/h1><h2>Patient: ${pName} | Age: ${pAge}<\/h2><p><b>Date:<\/b> ${new Date().toLocaleString()}<\/p><p><b>Recorded Average:<\/b> ${currentSessionAvgBPM} BPM<\/p><div class="ai-box"><strong>✨ AI Health Assessment:<\/strong><br><br>${finalAiReport}<div class="disclaimer"><b>Disclaimer:<\/b> This assessment was generated by an Artificial Intelligence assistant based on your home telemetry and responses. It is NOT a substitute for professional medical advice, diagnosis, or treatment. Please share this report with your doctor for clinical review.<\/div><\/div><img src="${snapshot}" alt="Waveform Snapshot"><\/body><\/html>`;
+      
+      const blob = new Blob([html], {type: 'text/html'});
+      const fileName = `Health_Report_${pName.replace(/\s+/g, '_')}_${Date.now()}.html`;
+      const file = new File([blob], fileName, { type: 'text/html' });
 
-    // Updated Report Generator
-    document.getElementById('reportBtn').onclick=()=>{
-      const snapshot=canvas.toDataURL('image/png');
-      
-      // Calculate average by extracting the bpm value from the objects
-      const avg = bpmHistory.length ? Math.round(bpmHistory.reduce((sum, entry) => sum + entry.bpm, 0) / bpmHistory.length) : "--";
-      
-      // Build HTML table rows dynamically
-      let tableRows = '';
-      if(bpmHistory.length > 0) {
-        bpmHistory.forEach(entry => {
-          tableRows += `<tr><td>${entry.time}<\/td><td><strong>${entry.bpm}<\/strong><\/td><\/tr>`;
-        });
-      } else {
-        tableRows = `<tr><td colspan="2">No valid BPM data captured.<\/td><\/tr>`;
-      }
-
-      const html=`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Stethoscope Report<\/title>
-      <style>
-        body { font-family: sans-serif; background: #f8fafc; color: #0f172a; text-align: center; padding: 20px; }
-        h1 { color: #1e3a8a; }
-        img { max-width: 100%; border: 1px solid #ccc; border-radius: 8px; margin-bottom: 20px; }
-        .table-container { max-width: 400px; margin: 0 auto; background: #fff; padding: 15px; border-radius: 8px; box-shadow: 0 0 5px rgba(0,0,0,0.1); }
-        table { width: 100%; border-collapse: collapse; text-align: left; }
-        th, td { padding: 10px; border-bottom: 1px solid #e2e8f0; }
-        th { background: #f1f5f9; color: #475569; }
-        td:nth-child(2) { color: #ef4444; text-align: right; }
-      <\/style><\/head><body>
-      <h1>Smart Stethoscope Report<\/h1>
-      <p><b>Date:<\/b> ${new Date().toLocaleString()}<\/p>
-      <p><b>Average BPM:<\/b> ${avg}<\/p>
-      <img src="${snapshot}" alt="Waveform Snapshot">
-      
-      <div class="table-container">
-        <h3>Recorded BPMs<\/h3>
-        <table>
-          <thead>
-            <tr>
-              <th>Time Captured<\/th>
-              <th style="text-align:right;">Heart Rate (BPM)<\/th>
-            <\/tr>
-          <\/thead>
-          <tbody>
-            ${tableRows}
-          <\/tbody>
-        <\/table>
-      <\/div>
-      <\/body><\/html>`;
-      
-      const blob=new Blob([html],{type:'text/html'});
-      const a=document.createElement('a');
-      a.href=URL.createObjectURL(blob);
-      a.download='Stethoscope_Report.html';
+      const a = document.createElement('a'); 
+      a.href = URL.createObjectURL(blob); 
+      a.download = fileName; 
       a.click();
+
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({
+            title: `Health Report - ${pName}`,
+            text: `Hi Doctor, here is my recent stethoscope telemetry report for review. Avg BPM: ${currentSessionAvgBPM}. AI Notes: "${finalAiReport}"`,
+            files: [file] 
+          });
+        } catch (error) { 
+          console.log('Sharing dismissed by user.', error); 
+        }
+      } else {
+        alert("Report downloaded successfully! You can now attach it manually in your messaging app.");
+      }
     };
 
     updateWave();
